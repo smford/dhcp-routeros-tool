@@ -5,91 +5,151 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/go-routeros/routeros"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
+
+const applicationName string = "dhcp-routeros-tool"
+const applicationVersion string = "v0.1"
+const command string = "/ip/dhcp-server/lease/print"
 
 var (
-	command    = flag.String("command", "/ip/dhcp-server/lease/print", "RouterOS command")
-	address    = flag.String("address", "172.28.0.1:8729", "RouterOS address and port")
-	username   = flag.String("username", "test", "User name")
-	password   = flag.String("password", "somepassword", "Password")
-	async      = flag.Bool("async", false, "Use async code")
-	useTLS     = flag.Bool("tls", true, "Use TLS")
-	properties = flag.String("properties", "comment,address,mac-address,client-id,address-lists,server,dhcp-option,status,last-seen,host-name,radius,dynamic,blocked,disabled", "Properties")
+	columnstodisplay string
 )
 
-func dial() (*routeros.Client, error) {
-	if *useTLS {
-		return routeros.DialTLS(*address, *username, *password, nil)
+func init() {
+	flag.String("config", "config.yaml", "Configuration file: /path/to/file.yaml, default = ./config.yaml")
+	flag.Bool("displayconfig", false, "Display configuration")
+	flag.Bool("help", false, "Display help")
+	flag.Bool("version", false, "Display version information")
+	flag.Bool("simple", false, "Display simple format")
+	flag.Int("padding", 2, "Column padding size")
+
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
+	err := viper.BindPFlags(pflag.CommandLine)
+	checkErr(err)
+
+	if viper.GetBool("help") {
+		displayHelp()
+		os.Exit(0)
 	}
-	return routeros.Dial(*address, *username, *password)
+
+	if viper.GetBool("version") {
+		fmt.Println(applicationName + " " + applicationVersion)
+		os.Exit(0)
+	}
+
+	configdir, configfile := filepath.Split(viper.GetString("config"))
+
+	// set default configuration directory to current directory
+	if configdir == "" {
+		configdir = "."
+	}
+
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configdir)
+
+	config := strings.TrimSuffix(configfile, ".yaml")
+	config = strings.TrimSuffix(config, ".yml")
+
+	viper.SetConfigName(config)
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			log.Fatal("Config file not found")
+		} else {
+			log.Fatal("Config file was found but another error was discovered: ", err)
+		}
+	}
+
+	if viper.GetBool("displayconfig") {
+		displayConfig()
+		os.Exit(0)
+	}
+
+	if viper.GetBool("simple") {
+		columnstodisplay = viper.GetString("simpledisplay")
+	} else {
+		columnstodisplay = viper.GetString("defaultdisplay")
+	}
 }
 
 func main() {
-	flag.Parse()
 
-	c, err := dial()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer c.Close()
+	client, err := dial()
+	checkErr(err)
 
-	if *async {
-		c.Async()
+	defer client.Close()
+
+	if viper.GetBool("async") {
+		client.Async()
 	}
 
-	r, err := c.RunArgs(strings.Split(*command, " "))
-	if err != nil {
-		log.Fatal(err)
+	response, err := client.RunArgs(strings.Split(command, " "))
+	checkErr(err)
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, viper.GetInt("padding"), ' ', 0)
+
+	var columnheadings string
+	for _, heading := range strings.Split(columnstodisplay, ",") {
+		columnheadings = columnheadings + strings.ToUpper(heading) + "\t"
 	}
+	columnheadings = columnheadings + "\n"
+	fmt.Fprint(w, columnheadings)
 
-	/*
-		log.Print(r)
-		fmt.Printf("\n======%T\n========\n\n", r)
-	*/
-
-	/*
-		for k, v := range r.Re {
-			fmt.Println("---")
-			fmt.Printf("k type and value: %T %d\n", k, k)
-			fmt.Printf("v type: %T\n", v)
-			fmt.Printf("v.Word: %T\n", v.Word)
-			fmt.Printf("v.Word values:: %+v\n", v)
-			fmt.Printf("v.Word contents:: %s\n", v)
-			fmt.Printf("v.Tag %T\n", v.Tag)
-			fmt.Printf("v.Tag contents:: %+v\n", v.Tag)
+	for _, myreply := range response.Re {
+		var mylease string
+		for _, p := range strings.Split(columnstodisplay, ",") {
+			mylease = mylease + myreply.Map[p] + "\t"
 		}
-	*/
-
-	/*
-		for _, re := range r.Re {
-			for _, p := range strings.Split(*properties, ",") {
-				fmt.Print(re.Map[p], "\t")
-			}
-			fmt.Print("\n")
-		}
-		fmt.Print("\n")
-	*/
-
-	const padding = 1
-	w := tabwriter.NewWriter(os.Stdout, 0, 2, padding, ' ', 0)
-	fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n", "Comment", "Address", "Mac-address", "Client-id", "Address-lists", "Server", "Dhcp-option", "Status", "Last-seen", "Host-name", "Radius", "Dynamic", "Blocked", "Disabled")
-
-	//var printthis string
-	for _, re := range r.Re {
-		var mytempstring string
-		for _, p := range strings.Split(*properties, ",") {
-			//fmt.Print(re.Map[p], "\t")
-			mytempstring = mytempstring + re.Map[p] + "\t"
-			//fmt.Print(printthis + ",")
-		}
-		fmt.Fprintf(w, "%s\n", mytempstring)
+		fmt.Fprintf(w, "%s\n", mylease)
 	}
-
-	//fmt.Fprintln(w, printthis)
 
 	w.Flush()
+}
+
+// displays help information
+func displayHelp() {
+	message := `
+      --config [file]       Configuration file: /path/to/file.yaml (default: "./config.yaml")
+      --displayconfig       Display configuration
+      --help                Display help
+      --simple              Display simple columns
+      --version             Display version`
+	fmt.Println(applicationName + " " + applicationVersion)
+	fmt.Println(message)
+}
+
+// display configuration
+func displayConfig() {
+	allmysettings := viper.AllSettings()
+	var keys []string
+	for k := range allmysettings {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Println("CONFIG:", k, ":", allmysettings[k])
+	}
+}
+
+// checks errors
+func checkErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func dial() (*routeros.Client, error) {
+	if viper.GetBool("usetls") {
+		return routeros.DialTLS(viper.GetString("address"), viper.GetString("username"), viper.GetString("password"), nil)
+	}
+	return routeros.Dial(viper.GetString("address"), viper.GetString("username"), viper.GetString("password"))
 }
