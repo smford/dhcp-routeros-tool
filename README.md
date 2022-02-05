@@ -67,7 +67,7 @@ defaultdisplay: "comment,address,mac-address,client-id,address-lists,server,dhcp
 | `usetls` | true | Use TLS to connect to router |
 | `async` | true | Execute commands asyncronously |
 | `username` | none | Username |
-| `passord` | none | Password |
+| `password` | none | Password |
 | `padding` | 2 | Number of spaces between columns |
 | `simpledisplay` | address,mac-address,client-id,server,status,last-seen,host-name,disabled | Columns to display when --simple argument passed |
 | `default` | comment,address,mac-address,client-id,address-lists,server,dhcp-option,status,last-seen,host-name,radius,dynamic,blocked,disabled | Columns to display by default |

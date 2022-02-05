@@ -1,0 +1,8 @@
+address: "192.168.10.1:8729"
+usetls: true
+async: true
+username: "username"
+password: "password"
+padding: 2
+simpledisplay: "address,mac-address,client-id,server,status,last-seen,host-name,disabled"
+defaultdisplay: "comment,address,mac-address,client-id,address-lists,server,dhcp-option,status,last-seen,host-name,radius,dynamic,blocked,disabled"

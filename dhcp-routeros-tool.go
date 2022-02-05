@@ -16,7 +16,7 @@ import (
 )
 
 const applicationName string = "dhcp-routeros-tool"
-const applicationVersion string = "v0.1"
+const applicationVersion string = "v0.2"
 const command string = "/ip/dhcp-server/lease/print"
 
 var (
@@ -24,12 +24,19 @@ var (
 )
 
 func init() {
+	flag.String("address", "", "The IP address or hostname of mikrotik router")
+	flag.Bool("async", true, "Execute commands asyncronously")
 	flag.String("config", "config.yaml", "Configuration file: /path/to/file.yaml, default = ./config.yaml")
+	flag.String("default", "comment,address,mac-address,client-id,address-lists,server,dhcp-option,status,last-seen,host-name,radius,dynamic,blocked,disabled", "Columns to display by default")
 	flag.Bool("displayconfig", false, "Display configuration")
 	flag.Bool("help", false, "Display help")
-	flag.Bool("version", false, "Display version information")
-	flag.Bool("simple", false, "Display simple format")
 	flag.Int("padding", 2, "Column padding size")
+	flag.String("password", "", "Password")
+	flag.Bool("simple", false, "Display simple format")
+	flag.String("simpledisplay", "address,mac-address,client-id,server,status,last-seen,host-name,disabled", "Columns to display when --simple argument passed")
+	flag.String("username", "", "Username")
+	flag.Bool("usetls", true, "Use TLS to connect to router")
+	flag.Bool("version", false, "Display version information")
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
